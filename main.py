@@ -7,13 +7,10 @@ from selenium.webdriver.common.keys import Keys    # type things in the search b
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
-# Create a Chrome browser instance and enable headless mode
 options = Options()
 options.add_argument('--headless')  # 启用无头模式
 
-
 # ...
-# Code for page access and data extraction
 # ...
 
 from selenium.webdriver.common.by import By
@@ -28,10 +25,18 @@ from review_spider import get_max_page, organize_info, scrap_review
 import os
 from fuzzywuzzy import fuzz
 #```
+# `
+def check_top_match(check_):
+    for i in check_:
+        if i.text == 'Top match':
+            print('has Top Match')
+            # counter += 1
+            return True
+    return False
 
 is_all_reviews_from_this_business = True
 
-
+all_reviews_from_this_business = []
 PATH = '/Users/fangzheng/Downloads/archive/yelp_academic_dataset_business.json'
 # read data in the json file
 data = pd.read_json(PATH, lines=True)
@@ -40,23 +45,15 @@ print(data)
 store_name_list = data['name']
 city_list  = data['city']
 address_list = data['address']
-# driver = webdriver.Chrome(options=options )
-driver = webdriver.Chrome( )
+driver = webdriver.Chrome(options=options)
+
 
 no_results_index = [11,13]
-counter = 0
+counter = 80362
 selected_url = ""
 
-# counter = 314
-# store_name_list, city_list, address_list = store_name_list[counter:], city_list[counter:], address_list[counter:]
+store_name_list, city_list, address_list = store_name_list[counter:], city_list[counter:], address_list[counter:]
 
-def check_top_match(check_):
-    for i in check_:
-        if i.text == 'Top match':
-            print('has Top Match')
-            # counter += 1
-            return True
-    return False
 for store_name, city,address in zip(store_name_list, city_list, address_list):
     print(counter)
     city_address_encoded = urllib.parse.quote(city+' '+address)
@@ -75,7 +72,6 @@ for store_name, city,address in zip(store_name_list, city_list, address_list):
     
         if (check_element and "No results for" in check_element[0].text) or (check_sorry_results and "Sorry, we couldn't find any results" in check_sorry_results[0].text):
             print("No results found.")
-            no_results_index.append(counter)
 
         else:
             print("Results found. Proceed with scraping...")
@@ -83,24 +79,24 @@ for store_name, city,address in zip(store_name_list, city_list, address_list):
             name_elements = driver.find_elements(By.XPATH,f'//div[contains(@class," css-1qn0b6x")]/h3[contains(@class,"css-1agk4wl")]/span[contains(@class," css-1egxyvc")]/a[contains(@class,"css-19v1rkv")]')
             
             for i in name_elements:
-                # if (i.text.replace("'",'"')) == (store_name) : Because Kengdao's webpage is in Chinese, but the database is in English, so we need to convert it here
-                # Use a string similarity algorithm to measure the similarity between two strings.
-                # One commonly used algorithm is the Levenshtein distance, which can calculate the editing distance between two strings, that is, how many insertion, deletion, or replacement operations need to be performed to convert one string to another.
                 if fuzz.ratio(i.text, store_name)>87:
                     print('has this store')
                     selected_url = i.get_attribute('href')
                     print(selected_url)
                     break
+                else:
+                    print('no this store')
 
-                # print(i.text)
             if len(selected_url) != 0:
                 all_reviews_from_this_business = scrap_review(selected_url)
                 if len(all_reviews_from_this_business) == 0:
                     print('no reviews found')
+                    counter += 1
                     continue
             else:
                 print('no store found')
                 is_all_reviews_from_this_business = False
+                counter += 1
                 continue
             directory = 'reviews'
             if not os.path.exists(directory):
@@ -109,10 +105,9 @@ for store_name, city,address in zip(store_name_list, city_list, address_list):
                 json.dump(all_reviews_from_this_business, f)
             print()
 
-        # pass
     else:
-        # has top match, find the next 
-        a_elements = driver.find_elements(By.XPATH,'//ul[contains(@class, "undefined list__09f24__ynIEd")]/li[contains(@class, "css-1qn0b6x") and div/h2[contains(@class, "css-agyoef") and text() = "Top match"]]/following-sibling::li[1]//div[contains(@class," css-1qn0b6x")]/h3[contains(@class,"css-1agk4wl")]/span[contains(@class," css-1egxyvc")]/a[contains(@class,"css-19v1rkv")]')
+        a_elements = driver.find_elements(By.XPATH,'//ul[contains(@class, "undefined list__09f24__ynIEd") or contains(@class," undefined list__09f24__ynIEd")]/li[contains(@class, "css-1qn0b6x") or contains(@class," css-1qn0b6x") and div/h2[contains(@class, "css-agyoef") and text() = "Top match"]]/following-sibling::li[1]//div[contains(@class," css-1qn0b6x")]/h3[contains(@class,"css-1agk4wl")]/span[contains(@class," css-1egxyvc")]/a[contains(@class,"css-19v1rkv")]')
+
         if len(a_elements) == 0:
             pass
         else:
@@ -126,10 +121,7 @@ for store_name, city,address in zip(store_name_list, city_list, address_list):
                 json.dump(all_reviews_from_this_business, f)
             print()
 
-
     counter += 1
     if is_all_reviews_from_this_business != False:
         all_reviews_from_this_business.clear()
     continue
-  
-driver.quit()
